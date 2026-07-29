@@ -50,6 +50,7 @@ const LEAVE_TYPES = [
   { code: 'UNPAID', name_ar: 'إجازة بدون راتب', max_days: 60, paid: 0, deducts_balance: 0, requires_attachment: 0 },
 ];
 
+// [الرقم، الاسم عربي، الاسم إنجليزي، البريد، الدور، المسمى، القسم، أساسي، سكن، نقل، الجنسية]
 const EMPLOYEES = [
   ['1001', 'عبدالله بن سعد المطيري', 'Abdullah Almutairi', 'admin@madad.com.sa', 'admin', 'الرئيس التنفيذي', 'EXEC', 32000, 8000, 2000],
   ['1002', 'نورة بنت فهد العتيبي', 'Noura Alotaibi', 'hr@madad.com.sa', 'hr', 'مدير الموارد البشرية', 'HR', 18000, 4500, 1500],
@@ -71,6 +72,11 @@ const EMPLOYEES = [
   ['1018', 'جواهر بنت منصور القرني', 'Jawaher Alqarni', 'j.alqarni@madad.com.sa', 'employee', 'منسق مستودعات', 'WH', 7200, 1800, 800],
   ['1019', 'عبدالرحمن بن زياد الشهري', 'Abdulrahman Alshehri', 'a.alshehri@madad.com.sa', 'employee', 'فني صيانة مركبات', 'FLT', 6000, 1500, 800],
   ['1020', 'وليد بن عوض البلوي', 'Waleed Albalawi', 'w.albalawi@madad.com.sa', 'employee', 'مهندس دعم فني', 'IT', 10000, 2500, 1000],
+  // موظفون غير سعوديين — يخضعون لفرع الأخطار المهنية 2% على صاحب العمل فقط
+  ['1021', 'محمد أشرف حسين', 'Mohamed Ashraf Hussein', 'm.ashraf@madad.com.sa', 'employee', 'سائق شاحنة', 'OPS', 4500, 1125, 700, 'مصري'],
+  ['1022', 'راجيش كومار نايير', 'Rajesh Kumar Nair', 'r.kumar@madad.com.sa', 'employee', 'فني صيانة مركبات', 'FLT', 4200, 1050, 700, 'هندي'],
+  ['1023', 'عمران خان محمود', 'Imran Khan Mahmood', 'i.khan@madad.com.sa', 'employee', 'عامل مستودع', 'WH', 3800, 950, 600, 'باكستاني'],
+  ['1024', 'أحمد سليم الشامي', 'Ahmed Salim Alshami', 'a.alshami@madad.com.sa', 'employee', 'سائق تريلا', 'OPS', 4800, 1200, 700, 'سوري'],
 ];
 
 const VEHICLES = [
@@ -125,7 +131,8 @@ function seed() {
 
     // الموظفون
     const passwordHash = hashPassword(DEFAULT_PASSWORD);
-    EMPLOYEES.forEach(([no, nameAr, nameEn, email, role, title, deptCode, basic, housing, transport], i) => {
+    EMPLOYEES.forEach(([no, nameAr, nameEn, email, role, title, deptCode, basic, housing,
+      transport, nationality], i) => {
       const hireDate = dates.addDays(dates.today(), -rand(90, 2200));
       db.run(
         `INSERT INTO employees (employee_no, national_id, full_name_ar, full_name_en, email, phone,
@@ -136,7 +143,7 @@ function seed() {
          VALUES (?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [no, `10${String(23456789 + i)}`, nameAr, nameEn, email, `05${rand(10000000, 59999999)}`,
           passwordHash, role, title, deptByCode[deptCode], hireDate,
-          'دوام كامل', 'active', 'سعودي',
+          'دوام كامل', 'active', nationality || 'سعودي',
           /بنت/.test(nameAr) ? 'أنثى' : 'ذكر',
           dates.addDays(hireDate, -rand(7000, 12000)),
           `${pick(CITIES, i)} - حي الملقا`, 'قريب من الدرجة الأولى', `05${rand(10000000, 59999999)}`,
@@ -157,7 +164,8 @@ function seed() {
       1011: byNo['1004'].id, 1012: byNo['1004'].id, 1013: byNo['1004'].id,
       1014: byNo['1002'].id, 1015: byNo['1003'].id, 1016: byNo['1008'].id,
       1017: byNo['1006'].id, 1018: byNo['1006'].id, 1019: byNo['1005'].id,
-      1020: byNo['1007'].id,
+      1020: byNo['1007'].id, 1021: byNo['1004'].id, 1022: byNo['1005'].id,
+      1023: byNo['1006'].id, 1024: byNo['1004'].id,
     };
     Object.entries(reporting).forEach(([no, managerId]) => {
       db.run('UPDATE employees SET manager_id = ? WHERE employee_no = ?', [managerId, no]);
@@ -397,28 +405,33 @@ function seed() {
       const runId = Number(info.lastInsertRowid);
       let gross = 0;
       let net = 0;
+      let gosiEmployer = 0;
 
       db.all("SELECT * FROM employees WHERE status = 'active'").forEach((employee) => {
         const slip = computePayslip(employee, pYear, pMonth);
         gross += slip.gross_amount;
         net += slip.net_amount;
+        gosiEmployer += slip.gosi_employer;
         db.run(
           `INSERT INTO payslips (run_id, employee_id, basic_salary, housing_allowance,
               transport_allowance, other_allowance, overtime_amount, gosi_deduction,
+              gosi_employer, gosi_total, gosi_category, gosi_wage,
               absence_deduction, loan_deduction, other_deduction, gross_amount, net_amount,
               absent_days, overtime_hours)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [runId, employee.id, slip.basic_salary, slip.housing_allowance, slip.transport_allowance,
-            slip.other_allowance, slip.overtime_amount, slip.gosi_deduction, slip.absence_deduction,
-            slip.loan_deduction, slip.other_deduction, slip.gross_amount, slip.net_amount,
-            slip.absent_days, slip.overtime_hours],
+            slip.other_allowance, slip.overtime_amount, slip.gosi_deduction,
+            slip.gosi_employer, slip.gosi_total, slip.gosi_category, slip.gosi_wage,
+            slip.absence_deduction, slip.loan_deduction, slip.other_deduction,
+            slip.gross_amount, slip.net_amount, slip.absent_days, slip.overtime_hours],
         );
       });
 
+      const r2 = (n) => Math.round(n * 100) / 100;
       db.run(
-        `UPDATE payroll_runs SET total_gross = ?, total_net = ?, approved_by = ?,
-                approved_at = datetime('now') WHERE id = ?`,
-        [Math.round(gross * 100) / 100, Math.round(net * 100) / 100, creator ? creator.id : null, runId],
+        `UPDATE payroll_runs SET total_gross = ?, total_net = ?, total_gosi_employer = ?,
+                approved_by = ?, approved_at = datetime('now') WHERE id = ?`,
+        [r2(gross), r2(net), r2(gosiEmployer), creator ? creator.id : null, runId],
       );
     });
   }

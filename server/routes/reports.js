@@ -111,9 +111,14 @@ router.get('/payroll-cost', requirePermission('payroll:read'), asyncHandler(asyn
     `SELECT r.year AS "السنة",
             r.month AS "الشهر",
             COUNT(p.id) AS "عدد الموظفين",
+            SUM(CASE WHEN p.gosi_category = 'saudi' THEN 1 ELSE 0 END) AS "سعوديون",
+            SUM(CASE WHEN p.gosi_category <> 'saudi' THEN 1 ELSE 0 END) AS "غير سعوديين",
             ROUND(SUM(p.gross_amount), 2) AS "إجمالي الاستحقاق",
+            ROUND(SUM(p.gosi_deduction), 2) AS "تأمينات حصة الموظف",
             ROUND(SUM(p.gosi_deduction + p.absence_deduction + p.loan_deduction + p.other_deduction), 2) AS "إجمالي الاستقطاعات",
             ROUND(SUM(p.net_amount), 2) AS "صافي المستحق",
+            ROUND(SUM(p.gosi_employer), 2) AS "تأمينات حصة صاحب العمل",
+            ROUND(SUM(p.gross_amount + p.gosi_employer), 2) AS "تكلفة الشركة الإجمالية",
             CASE r.status WHEN 'approved' THEN 'معتمد' ELSE 'مسودة' END AS "الحالة"
        FROM payroll_runs r LEFT JOIN payslips p ON p.run_id = r.id
       GROUP BY r.id ORDER BY r.year DESC, r.month DESC`,

@@ -298,7 +298,12 @@
         backdrop.remove();
         document.removeEventListener('keydown', onKey);
       };
-      function onKey(event) { if (event.key === 'Escape') close(); }
+      // عند تكدّس النوافذ يغلق زر Escape النافذة العلوية وحدها
+      function onKey(event) {
+        if (event.key !== 'Escape') return;
+        if (root.lastElementChild !== backdrop) return;
+        close();
+      }
 
       backdrop.querySelector('.close-x').addEventListener('click', close);
       backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
