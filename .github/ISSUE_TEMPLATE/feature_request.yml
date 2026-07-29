@@ -1,0 +1,90 @@
+name: طلب ميزة
+description: اقتراح إضافة أو تحسين في البوابة
+title: "[ميزة]: "
+labels: ["ميزة"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        اشرح الحاجة قبل الحل — فهم المشكلة يفتح غالباً حلولاً أبسط ممّا نتصوّر.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: المشكلة أو الحاجة
+      description: ما العمل الذي يصعب إنجازه اليوم؟ وما تكلفته الحالية على المستخدم؟
+      placeholder: تستغرق الموارد البشرية وقتاً طويلاً في تجهيز خطابات التعريف يدوياً لكل موظف.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: الحل المقترح
+      description: كيف تتصوّر عمل الميزة من وجهة نظر المستخدم؟
+    validations:
+      required: true
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: الوحدة المعنيّة
+      options:
+        - لوحة التحكم
+        - شؤون الموظفين
+        - الأقسام والهيكل التنظيمي
+        - الحضور والانصراف
+        - الإجازات
+        - الرواتب
+        - طلبات الخدمات
+        - المستندات
+        - الإعلانات
+        - الأسطول
+        - الرحلات والشحنات
+        - التقارير
+        - الإعدادات وسجل النشاط
+        - وحدة جديدة
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: beneficiaries
+    attributes:
+      label: من يستفيد من هذه الميزة؟
+      options:
+        - label: مدير النظام
+        - label: الموارد البشرية
+        - label: الشؤون المالية
+        - label: إدارة العمليات
+        - label: المدير المباشر
+        - label: الموظف
+
+  - type: textarea
+    id: permissions
+    attributes:
+      label: الصلاحيات المطلوبة
+      description: من يجب أن يصل إلى هذه الميزة، ومن يجب منعه صراحةً؟
+      placeholder: متاحة للموارد البشرية ومدير النظام فقط، ولا تظهر للموظف العادي.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: بدائل جرّبتها أو فكّرت فيها
+      description: هل توجد طريقة التفاف حالية؟ ولماذا لا تكفي؟
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: مدى الإلحاح
+      options:
+        - عاجل — عمل متوقّف بسببها
+        - مهم — تحسين ملموس في وقت العمل
+        - مفيد — تحسين تدريجي يمكن تأجيله
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: ملاحظات إضافية
+      description: أمثلة، مرفقات، نماذج ورقية حالية، أو متطلبات نظامية ذات صلة.

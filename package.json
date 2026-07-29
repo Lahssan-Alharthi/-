@@ -1,0 +1,24 @@
+{
+  "name": "madad-employee-portal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "بوابة الموظفين المتكاملة - شركة مدد للخدمات اللوجستية",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "seed": "node server/db/seed.js",
+    "reset": "node server/db/seed.js --reset",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0"
+  }
+}
