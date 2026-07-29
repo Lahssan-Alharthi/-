@@ -58,6 +58,10 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/notifications', misc.notifications);
 app.use('/api/audit', misc.audit);
 app.use('/api/settings', misc.settings);
+app.use('/api/api-keys', require('./routes/apikeys'));
+
+// واجهة الربط للأنظمة الخارجية — توثيق بمفتاح لا بجلسة مستخدم
+app.use('/api/v1', require('./routes/v1'));
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'المسار المطلوب غير موجود' });

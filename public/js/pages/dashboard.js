@@ -191,30 +191,22 @@
           </div>
         </div>`;
 
-      const checkIn = container.querySelector('#check-in');
-      const checkOut = container.querySelector('#check-out');
-
-      if (checkIn) {
-        checkIn.addEventListener('click', async () => {
-          checkIn.disabled = true;
+      // تسجيل الحضور يمرّ عبر pwa ليُؤجَّل تلقائياً عند انقطاع الاتصال
+      const bindCheck = (selector, path) => {
+        const button = container.querySelector(selector);
+        if (!button) return;
+        button.addEventListener('click', async () => {
+          button.disabled = true;
           try {
-            const result = await api.post('/attendance/check-in');
-            ui.toast(result.message, 'success');
-            App.refresh();
-          } catch (error) { ui.fail(error); checkIn.disabled = false; }
+            const result = await pwa.markAttendance(path);
+            ui.toast(result.message, result.queued ? 'warn' : 'success');
+            if (!result.queued) App.refresh();
+          } catch (error) { ui.fail(error); button.disabled = false; }
         });
-      }
+      };
 
-      if (checkOut) {
-        checkOut.addEventListener('click', async () => {
-          checkOut.disabled = true;
-          try {
-            const result = await api.post('/attendance/check-out');
-            ui.toast(result.message, 'success');
-            App.refresh();
-          } catch (error) { ui.fail(error); checkOut.disabled = false; }
-        });
-      }
+      bindCheck('#check-in', '/attendance/check-in');
+      bindCheck('#check-out', '/attendance/check-out');
     },
   };
 }(window));

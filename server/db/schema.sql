@@ -255,6 +255,28 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 
+-- مفاتيح الربط للأنظمة الخارجية. لا يُخزَّن المفتاح نفسه بل تلبيدته فقط.
+CREATE TABLE IF NOT EXISTS api_keys (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  name              TEXT    NOT NULL,
+  description       TEXT,
+  environment       TEXT    NOT NULL DEFAULT 'live',
+  key_prefix        TEXT    NOT NULL,
+  key_hash          TEXT    NOT NULL UNIQUE,
+  scopes            TEXT    NOT NULL DEFAULT '',
+  rate_limit        INTEGER NOT NULL DEFAULT 600,  -- طلب لكل دقيقة
+  created_by        INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+  expires_at        TEXT,
+  last_used_at      TEXT,
+  last_used_ip      TEXT,
+  request_count     INTEGER NOT NULL DEFAULT 0,
+  revoked_at        TEXT,
+  revoked_by        INTEGER REFERENCES employees(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+
 CREATE TABLE IF NOT EXISTS settings (
   key         TEXT PRIMARY KEY,
   value       TEXT,
