@@ -104,7 +104,9 @@ test.before(async () => {
   ids.ops = makeEmployee('9004', 'مدير العمليات', 'ops@test.sa', 'operations');
   ids.manager = makeEmployee('9005', 'مدير مباشر', 'mgr@test.sa', 'manager', { department_id: deptId });
   ids.employee = makeEmployee('9006', 'موظف تجريبي', 'emp@test.sa', 'employee',
-    { department_id: deptId, manager_id: ids.manager });
+    { department_id: deptId, manager_id: ids.manager, nationality: 'سعودي' });
+  ids.expat = makeEmployee('9008', 'موظف غير سعودي', 'expat@test.sa', 'employee',
+    { department_id: deptId, manager_id: ids.manager, nationality: 'مصري' });
   ids.lowBalance = makeEmployee('9007', 'موظف برصيد منخفض', 'lowbalance@test.sa', 'employee',
     { department_id: deptId, manager_id: ids.manager, annual_leave_balance: 3 });
 
@@ -355,8 +357,6 @@ test('توليد مسيّر رواتب واعتماده يجعله مرئياً 
   const slip = details.body.data.payslips.find((p) => p.employee_id === ids.employee);
   // 10000 أساسي + 2500 سكن + 1000 نقل = 13500 قبل الإضافي
   assert.ok(slip.gross_amount >= 13500);
-  // التأمينات 9.75% من (الأساسي + السكن) = 1218.75
-  assert.strictEqual(slip.gosi_deduction, 1218.75);
   assert.ok(slip.net_amount < slip.gross_amount);
 
   // قبل الاعتماد لا يظهر للموظف
@@ -372,6 +372,72 @@ test('توليد مسيّر رواتب واعتماده يجعله مرئياً 
   // لا يمكن حذف مسيّر معتمد
   const remove = await financeClient.del(`/payroll/runs/${runId}`);
   assert.strictEqual(remove.status, 409);
+});
+
+test('التأمينات: السعودي 22% إجمالاً بحصة موظف 10% وحصة صاحب عمل 12%', async () => {
+  const financeClient = await login('fin@test.sa');
+  const runs = await financeClient.get('/payroll/runs');
+  const details = await financeClient.get(`/payroll/runs/${runs.body.data[0].id}`);
+  const slip = details.body.data.payslips.find((p) => p.employee_id === ids.employee);
+
+  // الوعاء = الأساسي 10000 + السكن 2500 = 12500
+  assert.strictEqual(slip.gosi_category, 'saudi');
+  assert.strictEqual(slip.gosi_wage, 12500);
+  assert.strictEqual(slip.gosi_total, 2750); // 22%
+  assert.strictEqual(slip.gosi_deduction, 1250); // 10% حصة الموظف
+  assert.strictEqual(slip.gosi_employer, 1500); // 12% حصة صاحب العمل
+
+  // حصة صاحب العمل لا تُخصم من الموظف
+  const expectedNet = slip.gross_amount - slip.gosi_deduction
+    - slip.absence_deduction - slip.loan_deduction - slip.other_deduction;
+  assert.strictEqual(slip.net_amount, Math.round(expectedNet * 100) / 100);
+});
+
+test('التأمينات: غير السعودي 2% أخطار مهنية على صاحب العمل بلا خصم من الموظف', async () => {
+  const financeClient = await login('fin@test.sa');
+  const runs = await financeClient.get('/payroll/runs');
+  const details = await financeClient.get(`/payroll/runs/${runs.body.data[0].id}`);
+  const slip = details.body.data.payslips.find((p) => p.employee_id === ids.expat);
+
+  assert.strictEqual(slip.gosi_category, 'non_saudi');
+  assert.strictEqual(slip.gosi_wage, 12500);
+  assert.strictEqual(slip.gosi_total, 250); // 2%
+  assert.strictEqual(slip.gosi_deduction, 0); // لا يتحمّل الموظف شيئاً
+  assert.strictEqual(slip.gosi_employer, 250);
+});
+
+test('التأمينات: تطبيق الحد الأقصى للأجر الخاضع للاشتراك', async () => {
+  const { computeGosi } = require('../server/utils/gosi');
+
+  // الوعاء الفعلي 60000 لكن الحد الأقصى 45000 ⇽ 22% من 45000 = 9900
+  const capped = computeGosi({ nationality: 'سعودي', basic_salary: 48000, housing_allowance: 12000 });
+  assert.strictEqual(capped.contributory_wage, 45000);
+  assert.strictEqual(capped.capped, true);
+  assert.strictEqual(capped.total_amount, 9900);
+  assert.strictEqual(capped.employee_amount, 4500);
+  assert.strictEqual(capped.employer_amount, 5400);
+});
+
+test('التأمينات: تمييز الجنسية السعودية يتحمّل اختلاف الصياغة', async () => {
+  const { isSaudi } = require('../server/utils/gosi');
+
+  ['سعودي', 'سعودية', 'السعودية', ' سعوديه ', 'Saudi', 'KSA'].forEach((value) => {
+    assert.strictEqual(isSaudi(value), true, `يجب اعتبار "${value}" سعودياً`);
+  });
+  ['مصري', 'هندي', '', null, undefined, 'سعودي الجنسية'].forEach((value) => {
+    assert.strictEqual(isSaudi(value), false, `يجب عدم اعتبار "${value}" سعودياً`);
+  });
+});
+
+test('توليد المسيّر ينبّه على الموظفين بلا جنسية مسجّلة', async () => {
+  const financeClient = await login('fin@test.sa');
+  const run = await financeClient.post('/payroll/runs', { year: 2031, month: 5 });
+  assert.strictEqual(run.status, 201);
+
+  assert.ok(run.body.warnings, 'يجب إرجاع تنبيه عند وجود جنسيات ناقصة');
+  const flagged = run.body.warnings.missing_nationality.map((e) => e.id);
+  assert.ok(flagged.includes(ids.hr), 'الموظف بلا جنسية يجب أن يظهر في التنبيه');
+  assert.ok(!flagged.includes(ids.employee), 'الموظف ذو الجنسية المسجّلة لا يظهر في التنبيه');
 });
 
 test('الموظف لا يستطيع توليد مسيّر رواتب', async () => {

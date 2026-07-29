@@ -4,9 +4,22 @@
 
   global.PAGES = global.PAGES || {};
 
+  /** يعرض النسبة بين قوسين إذا أمكن اشتقاقها من الوعاء والمبلغ. */
+  function rateLabel(amount, wage) {
+    if (!wage) return '';
+    const percent = (Number(amount) || 0) / wage * 100;
+    if (!percent) return ' (0%)';
+    return ` (${Number(percent.toFixed(2))}%)`;
+  }
+
   function payslipHtml(slip) {
     const deductions = (slip.gosi_deduction || 0) + (slip.absence_deduction || 0)
       + (slip.loan_deduction || 0) + (slip.other_deduction || 0);
+
+    const isSaudi = slip.gosi_category === 'saudi';
+    const gosiEmployeeRate = rateLabel(slip.gosi_deduction, slip.gosi_wage);
+    const gosiEmployerRate = rateLabel(slip.gosi_employer, slip.gosi_wage);
+    const gosiTotalRate = rateLabel(slip.gosi_total, slip.gosi_wage);
 
     const line = (label, value, negative) => `
       <div class="row">
@@ -45,12 +58,34 @@
             <div>
               <h3>الاستقطاعات</h3>
               <div class="info-list" style="grid-template-columns:1fr">
-                ${line('التأمينات الاجتماعية (9.75%)', slip.gosi_deduction, true)}
+                ${line(`التأمينات الاجتماعية — حصة الموظف${gosiEmployeeRate}`, slip.gosi_deduction, true)}
                 ${line(`الغياب (${ui.number(slip.absent_days)} يوم)`, slip.absence_deduction, true)}
                 ${line('السلف', slip.loan_deduction, true)}
                 ${line('استقطاعات أخرى', slip.other_deduction, true)}
                 <div class="row"><span class="k"><b>إجمالي الاستقطاعات</b></span>
                   <span class="v money" style="color:var(--danger)">−${ui.money(deductions)}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-2 mb-0" style="background:#fafbfc">
+            <div class="card-body" style="padding:.9rem 1.15rem">
+              <div class="flex flex-wrap" style="gap:.5rem">
+                <b>التأمينات الاجتماعية</b>
+                <span class="badge ${isSaudi ? 'brand' : 'neutral'}">${isSaudi ? 'سعودي' : 'غير سعودي'}</span>
+                <span class="badge neutral">الوعاء ${ui.money(slip.gosi_wage)}</span>
+              </div>
+              <div class="info-list mt-1">
+                <div class="row"><span class="k">حصة الموظف${gosiEmployeeRate}</span>
+                  <span class="v money">${ui.money(slip.gosi_deduction)}</span></div>
+                <div class="row"><span class="k">حصة صاحب العمل${gosiEmployerRate}</span>
+                  <span class="v money">${ui.money(slip.gosi_employer)}</span></div>
+                <div class="row"><span class="k"><b>إجمالي الاشتراك${gosiTotalRate}</b></span>
+                  <span class="v money">${ui.money(slip.gosi_total)}</span></div>
+              </div>
+              <div class="small muted mt-1">
+                حصة صاحب العمل تكلفة على الشركة ولا تُخصم من راتب الموظف.
+                ${isSaudi ? '' : 'غير السعوديين يخضعون لفرع الأخطار المهنية فقط، ويتحمّله صاحب العمل بالكامل.'}
               </div>
             </div>
           </div>
@@ -117,20 +152,25 @@
     const run = result.data;
 
     const modal = ui.modal(`مسيّر رواتب ${run.month_name} ${run.year}`, `
-      <div class="grid grid-3 mb-2">
+      <div class="grid grid-4 mb-2">
         ${ui.stat('👥', 'عدد الموظفين', ui.number(run.payslips.length), '')}
-        ${ui.stat('💰', 'إجمالي الاستحقاق', ui.money(run.total_gross), '', 'info')}
-        ${ui.stat('✅', 'صافي المستحق', ui.money(run.total_net), ui.statusText(run.status), 'ok')}
+        ${ui.stat('💰', 'إجمالي الاستحقاق', ui.money(run.total_gross), 'قبل الاستقطاعات', 'info')}
+        ${ui.stat('✅', 'صافي المستحق للموظفين', ui.money(run.total_net), ui.statusText(run.status), 'ok')}
+        ${ui.stat('🏢', 'تكلفة الشركة الإجمالية', ui.money((run.total_gross || 0) + (run.total_gosi_employer || 0)),
+    `منها ${ui.money(run.total_gosi_employer)} حصة صاحب العمل`, 'accent')}
       </div>
       ${ui.table([
     { title: 'الرقم', key: 'employee_no' },
     { title: 'الموظف', key: 'employee_name' },
     { title: 'القسم', key: 'department_name' },
+    { title: 'الفئة', render: (r) => (r.gosi_category === 'saudi' ? '<span class="badge brand">سعودي</span>' : '<span class="badge neutral">غير سعودي</span>') },
     { title: 'الأساسي', cls: 'num', render: (r) => ui.money(r.basic_salary) },
     { title: 'البدلات', cls: 'num', render: (r) => ui.money((r.housing_allowance || 0) + (r.transport_allowance || 0) + (r.other_allowance || 0)) },
     { title: 'إضافي', cls: 'num', render: (r) => ui.money(r.overtime_amount) },
+    { title: 'تأمينات الموظف', cls: 'num', render: (r) => ui.money(r.gosi_deduction) },
     { title: 'الاستقطاعات', cls: 'num', render: (r) => ui.money((r.gosi_deduction || 0) + (r.absence_deduction || 0) + (r.loan_deduction || 0) + (r.other_deduction || 0)) },
     { title: 'الصافي', cls: 'num', render: (r) => `<b class="money">${ui.money(r.net_amount)}</b>` },
+    { title: 'تأمينات الشركة', cls: 'num', render: (r) => ui.money(r.gosi_employer) },
     { title: '', render: (r) => `<button class="btn sm secondary" data-slip="${r.id}">عرض</button>` },
   ], run.payslips, 'لا توجد إشعارات رواتب')}`, {
       wide: true,
@@ -208,6 +248,8 @@
     { title: 'عدد الموظفين', cls: 'num', render: (r) => ui.number(r.employees_count) },
     { title: 'إجمالي الاستحقاق', cls: 'num', render: (r) => ui.money(r.total_gross) },
     { title: 'صافي المستحق', cls: 'num', render: (r) => `<b class="money">${ui.money(r.total_net)}</b>` },
+    { title: 'تأمينات الشركة', cls: 'num', render: (r) => ui.money(r.total_gosi_employer) },
+    { title: 'تكلفة الشركة', cls: 'num', render: (r) => ui.money((r.total_gross || 0) + (r.total_gosi_employer || 0)) },
     { title: 'الحالة', render: (r) => ui.status(r.status) },
     { title: 'أنشأه', key: 'created_by_name' },
     { title: 'اعتمده', key: 'approved_by_name' },

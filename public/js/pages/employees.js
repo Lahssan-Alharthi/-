@@ -5,6 +5,8 @@
   global.PAGES = global.PAGES || {};
 
   const CONTRACTS = ['دوام كامل', 'دوام جزئي', 'عقد مؤقت', 'تدريب'];
+  const NATIONALITIES = ['سعودي', 'مصري', 'هندي', 'باكستاني', 'بنغلاديشي', 'سوري', 'يمني',
+    'سوداني', 'أردني', 'فلبيني', 'نيبالي', 'سريلانكي', 'تونسي', 'مغربي', 'لبناني'];
   const ROLES = [
     ['employee', 'موظف'], ['manager', 'مدير مباشر'], ['operations', 'إدارة العمليات'],
     ['hr', 'الموارد البشرية'], ['finance', 'الشؤون المالية'], ['admin', 'مدير النظام'],
@@ -148,7 +150,11 @@
           <div class="form-grid">
             <div class="field">
               <label>الجنسية</label>
-              <input type="text" name="nationality" value="${ui.esc(e.nationality || '')}">
+              <input type="text" name="nationality" list="nationalities" value="${ui.esc(e.nationality || '')}">
+              <datalist id="nationalities">
+                ${NATIONALITIES.map((n) => `<option value="${ui.esc(n)}"></option>`).join('')}
+              </datalist>
+              <div class="hint">تحدّد فئة التأمينات: «سعودي» ⇽ 22%، وغيرها ⇽ 2% أخطار مهنية على الشركة.</div>
             </div>
             <div class="field">
               <label>الجنس</label>

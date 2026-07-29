@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
   status        TEXT    NOT NULL DEFAULT 'draft',
   total_gross   REAL    NOT NULL DEFAULT 0,
   total_net     REAL    NOT NULL DEFAULT 0,
+  total_gosi_employer REAL NOT NULL DEFAULT 0, -- إجمالي حصة صاحب العمل من التأمينات
   notes         TEXT,
   created_by    INTEGER REFERENCES employees(id) ON DELETE SET NULL,
   created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -131,7 +132,11 @@ CREATE TABLE IF NOT EXISTS payslips (
   transport_allowance  REAL NOT NULL DEFAULT 0,
   other_allowance      REAL NOT NULL DEFAULT 0,
   overtime_amount      REAL NOT NULL DEFAULT 0,
-  gosi_deduction       REAL NOT NULL DEFAULT 0,
+  gosi_deduction       REAL NOT NULL DEFAULT 0,   -- حصة الموظف، تُخصم من الصافي
+  gosi_employer        REAL NOT NULL DEFAULT 0,   -- حصة صاحب العمل، تكلفة على الشركة
+  gosi_total           REAL NOT NULL DEFAULT 0,
+  gosi_category        TEXT,                      -- saudi أو non_saudi
+  gosi_wage            REAL NOT NULL DEFAULT 0,   -- الوعاء الخاضع للاشتراك
   absence_deduction    REAL NOT NULL DEFAULT 0,
   loan_deduction       REAL NOT NULL DEFAULT 0,
   other_deduction      REAL NOT NULL DEFAULT 0,

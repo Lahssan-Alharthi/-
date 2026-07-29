@@ -13,10 +13,30 @@ const db = new DatabaseSync(config.dbFile);
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
 
-/** ينشئ الجداول إن لم تكن موجودة. */
+/**
+ * أعمدة أُضيفت بعد الإصدار الأول. تُطبَّق على قواعد البيانات القائمة
+ * لأن CREATE TABLE IF NOT EXISTS لا يعدّل جدولاً موجوداً.
+ */
+const ADDED_COLUMNS = [
+  ['payslips', 'gosi_employer', 'REAL NOT NULL DEFAULT 0'],
+  ['payslips', 'gosi_total', 'REAL NOT NULL DEFAULT 0'],
+  ['payslips', 'gosi_category', 'TEXT'],
+  ['payslips', 'gosi_wage', 'REAL NOT NULL DEFAULT 0'],
+  ['payroll_runs', 'total_gosi_employer', 'REAL NOT NULL DEFAULT 0'],
+];
+
+/** يضيف عموداً إلى جدول قائم إن لم يكن موجوداً. */
+function ensureColumn(table, column, definition) {
+  const exists = db.prepare(`PRAGMA table_info(${table})`).all()
+    .some((row) => row.name === column);
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+/** ينشئ الجداول إن لم تكن موجودة، ثم يطبّق الترقيات التدريجية. */
 function migrate() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   db.exec(schema);
+  ADDED_COLUMNS.forEach((args) => ensureColumn(...args));
 }
 
 /** يحوّل كائنات SQLite (null-prototype) إلى كائنات عادية. */
