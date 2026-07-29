@@ -1,0 +1,124 @@
+name: تقرير خلل
+description: الإبلاغ عن سلوك غير صحيح في البوابة
+title: "[خلل]: "
+labels: ["خلل"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        شكراً لإبلاغك. كلما كانت خطوات إعادة الإنتاج أدقّ، كان الإصلاح أسرع.
+
+        **تنبيه:** لا تُرفق بيانات موظفين حقيقية أو أرقام هوية أو بيانات بنكية في اللقطات أو السجلات.
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: الوحدة
+      description: أين ظهر الخلل؟
+      options:
+        - لوحة التحكم
+        - تسجيل الدخول والحسابات
+        - شؤون الموظفين
+        - الأقسام والهيكل التنظيمي
+        - الحضور والانصراف
+        - الإجازات
+        - الرواتب
+        - طلبات الخدمات
+        - المستندات
+        - الإعلانات
+        - الأسطول
+        - الرحلات والشحنات
+        - التقارير
+        - الإعدادات وسجل النشاط
+        - غير ذلك
+    validations:
+      required: true
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: الدور المستخدَم
+      description: بأي دور كنت مسجّلاً عند ظهور الخلل؟
+      options:
+        - مدير النظام
+        - الموارد البشرية
+        - الشؤون المالية
+        - إدارة العمليات
+        - مدير مباشر
+        - موظف
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: خطوات إعادة الإنتاج
+      description: رقّم الخطوات بدقّة من لحظة تسجيل الدخول.
+      placeholder: |
+        1. سجّل الدخول بحساب الموارد البشرية
+        2. افتح صفحة الإجازات
+        3. اضغط "طلب إجازة" واختر إجازة سنوية
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: السلوك المتوقّع
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: السلوك الفعلي
+      description: أرفق نص رسالة الخطأ إن ظهرت.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: درجة الأثر
+      options:
+        - حرج — تعطّل كامل أو تسريب بيانات أو خطأ في مبالغ الرواتب
+        - مرتفع — وظيفة أساسية لا تعمل ولا يوجد بديل
+        - متوسط — خلل مزعج لكن يوجد التفاف حوله
+        - منخفض — مشكلة شكلية أو صياغة نص
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: البيئة
+      value: |
+        - إصدار Node.js:
+        - المتصفح ونظام التشغيل:
+        - جوال أم سطح مكتب:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: سجلّ الخادم أو وحدة تحكّم المتصفح
+      description: يُنسَّق تلقائياً ككود، لا حاجة لعلامات التنسيق.
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: لقطات الشاشة
+      description: اسحب الصور هنا مباشرة، بعد إخفاء أي بيانات شخصية.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: تأكيدات
+      options:
+        - label: بحثت في المشكلات المفتوحة ولم أجد تقريراً مشابهاً
+          required: true
+        - label: لا يحتوي التقرير على بيانات موظفين حقيقية أو أسرار
+          required: true

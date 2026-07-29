@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: سؤال حول التشغيل أو الإعداد
+    url: https://github.com/Lahssan-Alharthi/-/blob/main/README.md
+    about: راجع دليل التشغيل والحسابات التجريبية ومتغيّرات البيئة في README قبل فتح مشكلة.
+  - name: ثغرة أمنية
+    url: https://github.com/Lahssan-Alharthi/-/security/advisories/new
+    about: لا تفتح مشكلة علنية بالثغرات الأمنية — أبلغ عنها بشكل خاص عبر هذا الرابط.
