@@ -158,6 +158,76 @@ test('الاستعادة من نسخة تالفة تُرفض قبل لمس ال�
   assert.deepStrictEqual(counts(dbFile), before, 'البيانات الحالية سليمة');
 });
 
+test('إعادة الاستعادة في الثانية نفسها تحفظ نسخة أمان مستقلة', () => {
+  const dir = path.join(backupsDir, fs.readdirSync(backupsDir).filter((n) => n.startsWith('madad-'))[0]);
+  const safety = path.join(workDir, 'before-restore');
+
+  // تُحجز أسماء الثواني القادمة ليقع التزاحم يقيناً
+  const occupied = [0, 1, 2].map((offset) => {
+    const iso = new Date(Date.now() + offset * 1000).toISOString();
+    const stamp = `${iso.slice(0, 10).replace(/-/g, '')}-${iso.slice(11, 19).replace(/:/g, '')}`;
+    fs.mkdirSync(path.join(safety, stamp), { recursive: true });
+    return stamp;
+  });
+  const before = fs.readdirSync(safety);
+
+  const output = runScript('restore.js', [dir, '--yes']);
+  assert.match(output, /اكتملت الاستعادة/, 'إعادة المحاولة لا تفشل بتزاحم الاسم');
+
+  const created = fs.readdirSync(safety).filter((n) => !before.includes(n));
+  assert.strictEqual(created.length, 1, 'نسخة أمان واحدة جديدة');
+  assert.match(created[0], /^\d{8}-\d{6}-\d+$/, 'اسم بديل بلاحقة رقمية');
+
+  // نسخة الأمان محفوظة فعلاً لا مجلد فارغ — وإلا ضاعت إمكانية التراجع
+  assert.deepStrictEqual(
+    counts(path.join(safety, created[0], 'madad.db')), counts(dbFile),
+    'نسخة الأمان تحمل الحالة السابقة كاملة',
+  );
+
+  // المجلدات المحجوزة لم تُمس
+  occupied.forEach((stamp) => assert.ok(fs.existsSync(path.join(safety, stamp))));
+});
+
+test('نسخة في ثانية مشغولة تأخذ اسماً بديلاً بدل أن تفشل', () => {
+  const raceDir = path.join(workDir, 'race');
+  fs.mkdirSync(raceDir, { recursive: true });
+
+  // دقّة الطابع الزمني ثانية واحدة. تُحجز أسماء الثواني الثلاث القادمة
+  // ليقع التزاحم يقيناً أياً كانت اللحظة التي يبدأ فيها الأمر.
+  const occupied = [0, 1, 2].map((offset) => {
+    const iso = new Date(Date.now() + offset * 1000).toISOString();
+    const stamp = `${iso.slice(0, 10).replace(/-/g, '')}-${iso.slice(11, 19).replace(/:/g, '')}`;
+    const dir = path.join(raceDir, `madad-${stamp}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'manifest.json'), '{"counts":{"employees":0}}', 'utf8');
+    return `madad-${stamp}`;
+  });
+
+  const output = runScript('backup.js', ['--out', raceDir]);
+  assert.match(output, /اكتملت النسخة/, 'لا تفشل بتزاحم الاسم');
+
+  const created = fs.readdirSync(raceDir)
+    .filter((n) => n.startsWith('madad-') && !occupied.includes(n));
+  assert.strictEqual(created.length, 1, 'مجلد جديد واحد بلاحقة');
+  assert.match(created[0], /^madad-\d{8}-\d{6}-\d+$/, 'الاسم البديل بلاحقة رقمية');
+
+  // النسخة البديلة كاملة بذاتها لا مجرّد اسم
+  const dir = path.join(raceDir, created[0]);
+  assert.deepStrictEqual(counts(path.join(dir, 'madad.db')), counts(dbFile), 'بياناتها مطابقة');
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).verified, true,
+  );
+
+  // وتخضع للعرض ولسياسة الاحتفاظ كبقيّة النسخ
+  assert.match(runScript('backup.js', ['--out', raceDir, '--list']), new RegExp(created[0]));
+
+  runScript('backup.js', ['--out', raceDir, '--keep', '1']);
+  assert.strictEqual(
+    fs.readdirSync(raceDir).filter((n) => n.startsWith('madad-')).length, 1,
+    'الاحتفاظ يشمل النسخ ذات اللاحقة',
+  );
+});
+
 test('الاحتفاظ يحذف النسخ الزائدة ويبقي الأحدث', () => {
   // ثلاث نسخ إضافية بطوابع زمنية مختلفة
   const extra = ['madad-20200101-000001', 'madad-20200101-000002', 'madad-20200101-000003'];

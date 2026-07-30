@@ -44,6 +44,22 @@ function timestamp() {
   return `${iso.slice(0, 10).replace(/-/g, '')}-${iso.slice(11, 19).replace(/:/g, '')}`;
 }
 
+/**
+ * مسار نسخة غير مستخدم. دقّة الطابع الزمني ثانية واحدة، فنسختان في
+ * الثانية نفسها (إعادة تشغيل يدوي أو تكرار مهمة مجدولة) تتزاحمان على
+ * الاسم نفسه — تُضاف لاحقة عندئذٍ بدل أن يفشل الأمر.
+ */
+function uniqueTarget(root, stamp) {
+  const base = path.join(root, `madad-${stamp}`);
+  if (!fs.existsSync(base)) return base;
+
+  for (let suffix = 2; suffix < 100; suffix += 1) {
+    const candidate = `${base}-${suffix}`;
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error('تعذّر إيجاد اسم نسخة متاح — انتظر ثانية وأعد المحاولة');
+}
+
 function parseArgs(argv) {
   const args = { keep: 10, list: false, out: null };
   for (let i = 0; i < argv.length; i += 1) {
@@ -91,7 +107,7 @@ function verifyDatabase(dbFile) {
 function listBackups(root) {
   if (!fs.existsSync(root)) return [];
   return fs.readdirSync(root)
-    .filter((name) => /^madad-\d{8}-\d{6}$/.test(name))
+    .filter((name) => /^madad-\d{8}-\d{6}(-\d+)?$/.test(name))
     .sort()
     .map((name) => {
       const dir = path.join(root, name);
@@ -132,7 +148,8 @@ function run() {
     process.exit(1);
   }
 
-  const target = path.join(root, `madad-${timestamp()}`);
+  fs.mkdirSync(root, { recursive: true });
+  const target = uniqueTarget(root, timestamp());
 
   say(`${C.bold}نسخة احتياطية — بوابة موظفي شركة مدد${C.reset}`);
   say(`${C.dim}المصدر: ${config.dbFile}${C.reset}`);
