@@ -3,3 +3,7 @@ data/
 .env
 *.log
 .DS_Store
+
+# نسخ احتياطية محلية
+data/backups/
+data/before-restore/
