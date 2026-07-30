@@ -25,6 +25,12 @@
     download: 'تنزيل ملف',
     maintenance: 'تسجيل صيانة',
     status_change: 'تغيير حالة',
+    revoke: 'إلغاء مفتاح',
+    test: 'اختبار تسليم',
+    'api:attendance_push': 'دفع حضور من نظام خارجي',
+    'api:trip_create': 'إنشاء رحلة من نظام خارجي',
+    'api:trip_status': 'تحديث حالة رحلة من نظام خارجي',
+    'api:fleet_update': 'تحديث مركبة من نظام خارجي',
   };
 
   const ENTITY_LABELS = {
@@ -40,6 +46,9 @@
     vehicles: 'المركبات',
     trips: 'الرحلات',
     settings: 'الإعدادات',
+    api_keys: 'مفاتيح الربط',
+    webhooks: 'اشتراكات الأحداث',
+    notifications: 'الإشعارات',
   };
 
   function leaveTypeDialog(App) {
