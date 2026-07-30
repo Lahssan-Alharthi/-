@@ -41,6 +41,21 @@ function timestamp() {
   return `${iso.slice(0, 10).replace(/-/g, '')}-${iso.slice(11, 19).replace(/:/g, '')}`;
 }
 
+/**
+ * مسار غير مستخدم. دقّة الطابع الزمني ثانية واحدة، واستعادتان في الثانية
+ * نفسها (إعادة محاولة بعد فشل) تتزاحمان على اسم نسخة الأمان — تُضاف لاحقة
+ * عندئذٍ، فالمحاولة الثانية أولى ما يحتاج نسخة أمان لا أن يُمنع منها.
+ */
+function uniquePath(base) {
+  if (!fs.existsSync(base)) return base;
+
+  for (let suffix = 2; suffix < 100; suffix += 1) {
+    const candidate = `${base}-${suffix}`;
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error('تعذّر إيجاد اسم متاح لنسخة الأمان — انتظر ثانية وأعد المحاولة');
+}
+
 function tableCounts(dbFile) {
   if (!fs.existsSync(dbFile)) return null;
   const db = new DatabaseSync(dbFile, { readOnly: true });
@@ -123,7 +138,9 @@ function run() {
   }
 
   // 3) نسخة أمان من الحالة الحالية قبل الاستبدال
-  const safetyDir = path.join(path.dirname(config.dbFile), 'before-restore', timestamp());
+  const safetyDir = uniquePath(
+    path.join(path.dirname(config.dbFile), 'before-restore', timestamp()),
+  );
 
   if (fs.existsSync(config.dbFile)) {
     fs.mkdirSync(safetyDir, { recursive: true });
