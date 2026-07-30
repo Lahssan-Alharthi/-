@@ -87,6 +87,114 @@
     });
   }
 
+  /** نافذة إنشاء مفتاح ربط جديد. */
+  function apiKeyDialog(scopes, App) {
+    const modal = ui.modal('إنشاء مفتاح ربط', `
+      <form id="key-form">
+        <div class="form-grid">
+          <div class="field">
+            <label>اسم المفتاح *</label>
+            <input type="text" name="name" required placeholder="نظام المحاسبة — الإنتاج">
+          </div>
+          <div class="field">
+            <label>البيئة</label>
+            <select name="environment">
+              <option value="live">الإنتاج (live)</option>
+              <option value="test">الاختبار (test)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>حد الطلبات (طلب/دقيقة)</label>
+            <input type="number" name="rate_limit" min="1" max="60000" value="600">
+          </div>
+          <div class="field">
+            <label>تاريخ انتهاء الصلاحية</label>
+            <input type="date" name="expires_at">
+            <div class="hint">اتركه فارغاً لمفتاح بلا انتهاء.</div>
+          </div>
+          <div class="field full">
+            <label>الوصف</label>
+            <input type="text" name="description" placeholder="الغرض من المفتاح والنظام المستخدم له">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>نطاقات الوصول * <span class="muted small">(امنح أقل ما يكفي)</span></label>
+          <div class="scope-grid">
+            ${Object.entries(scopes).map(([scope, label]) => `
+              <label>
+                <input type="checkbox" name="scope" value="${ui.esc(scope)}">
+                <span>${ui.esc(label)}<code>${ui.esc(scope)}</code></span>
+              </label>`).join('')}
+          </div>
+        </div>
+      </form>`, {
+      wide: true,
+      footer: '<button class="btn" form="key-form" type="submit">إنشاء المفتاح</button>',
+    });
+
+    modal.el.querySelector('#key-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      const selected = [...form.querySelectorAll('input[name=scope]:checked')].map((i) => i.value);
+
+      if (!selected.length) {
+        ui.toast('يجب اختيار نطاق وصول واحد على الأقل', 'error');
+        return;
+      }
+
+      try {
+        const result = await api.post('/api-keys', {
+          name: form.name.value,
+          description: form.description.value,
+          environment: form.environment.value,
+          rate_limit: Number(form.rate_limit.value),
+          expires_at: form.expires_at.value || null,
+          scopes: selected,
+        });
+
+        modal.close();
+        showCreatedKey(result);
+        App.refresh();
+      } catch (error) { ui.fail(error); }
+    });
+  }
+
+  /** يعرض المفتاح مرة واحدة مع مثال جاهز للاستخدام. */
+  function showCreatedKey(result) {
+    const key = result.api_key;
+    const created = ui.modal('تم إنشاء المفتاح', `
+      <p class="badge warn" style="display:block;margin-bottom:1rem">
+        ${ui.esc(result.message)} إن فُقد فلا يمكن استرجاعه، ويجب إنشاء مفتاح جديد.
+      </p>
+      <div class="field">
+        <label>المفتاح</label>
+        <input class="key-value" id="key-text" value="${ui.esc(key)}" readonly>
+      </div>
+      <div class="field">
+        <label>مثال على الاستخدام</label>
+        <input class="key-value" readonly dir="ltr"
+               value="curl -H &quot;Authorization: Bearer ${ui.esc(key)}&quot; https://<host>/api/v1/ping">
+      </div>
+      <p class="small muted mb-0">
+        النطاقات الممنوحة: ${result.data.scopes.map((s) => `<code>${ui.esc(s)}</code>`).join('، ')}
+      </p>`, {
+      wide: true,
+      footer: '<button class="btn" id="copy-key" type="button">نسخ المفتاح</button>',
+    });
+
+    created.el.querySelector('#copy-key').addEventListener('click', async () => {
+      const input = created.el.querySelector('#key-text');
+      try {
+        await navigator.clipboard.writeText(key);
+        ui.toast('تم نسخ المفتاح', 'success');
+      } catch {
+        input.select();
+        ui.toast('حدّد المفتاح وانسخه يدوياً', 'warn');
+      }
+    });
+  }
+
   global.PAGES.admin = {
     async render(container, App) {
       if (!App.hasRole('admin')) {
@@ -94,14 +202,18 @@
         return;
       }
 
-      const [settingsResult, auditResult, typesResult] = await Promise.all([
+      const [settingsResult, auditResult, typesResult, keysResult, scopesResult] = await Promise.all([
         api.get('/settings'),
         api.get('/audit?limit=150'),
         api.get('/leaves/types'),
+        api.get('/api-keys'),
+        api.get('/api-keys/scopes'),
       ]);
 
       const settings = settingsResult.data;
       const logs = auditResult.data;
+      const keys = keysResult.data;
+      const scopes = scopesResult.data;
 
       container.innerHTML = `
         <div class="grid grid-2">
@@ -176,6 +288,48 @@
 
         <div class="card">
           <div class="card-head">
+            <h3>مفاتيح الربط بالأنظمة</h3><div class="spacer"></div>
+            <button class="btn accent" id="add-key">+ مفتاح ربط</button>
+          </div>
+          <div class="card-body">
+            <p class="small muted">
+              تتيح المفاتيح للأنظمة الخارجية (المحاسبة، أجهزة البصمة، تتبّع المركبات، تطبيقات الجوال)
+              الوصول إلى <code>/api/v1</code> بنطاقات محدّدة. المفتاح يُعرض مرة واحدة عند إنشائه فقط.
+            </p>
+          </div>
+          <div class="card-body tight">
+            ${ui.table([
+    { title: 'الاسم', render: (r) => `<b>${ui.esc(r.name)}</b>${r.description ? `<div class="small muted">${ui.esc(r.description)}</div>` : ''}` },
+    { title: 'البادئة', render: (r) => `<code dir="ltr">${ui.esc(r.key_prefix)}…</code>` },
+    { title: 'البيئة', render: (r) => (r.environment === 'live' ? '<span class="badge brand">إنتاج</span>' : '<span class="badge neutral">اختبار</span>') },
+    {
+      title: 'النطاقات',
+      cls: 'wrap',
+      render: (r) => r.scopes.map((s) => `<span class="badge neutral" style="margin:1px"><code>${ui.esc(s)}</code></span>`).join(' '),
+    },
+    { title: 'الحد', cls: 'num', render: (r) => `${ui.number(r.rate_limit)}/د` },
+    { title: 'عدد الطلبات', cls: 'num', render: (r) => ui.number(r.request_count) },
+    { title: 'آخر استخدام', render: (r) => (r.last_used_at ? ui.ago(r.last_used_at) : '<span class="muted">لم يُستخدم</span>') },
+    { title: 'الانتهاء', render: (r) => (r.expires_at ? ui.dateShort(r.expires_at) : '—') },
+    {
+      title: 'الحالة',
+      render: (r) => {
+        if (r.status === 'revoked') return `<span class="badge danger">ملغى</span><div class="small muted">${ui.ago(r.revoked_at)}</div>`;
+        if (r.status === 'expired') return '<span class="badge warn">منتهي</span>';
+        return '<span class="badge ok">فعّال</span>';
+      },
+    },
+    {
+      title: '',
+      render: (r) => (r.status === 'active'
+        ? `<button class="btn sm danger" data-revoke="${r.id}">إلغاء</button>` : ''),
+    },
+  ], keys, 'لا توجد مفاتيح ربط بعد')}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
             <h3>سجل نشاط النظام</h3><div class="spacer"></div>
             <span class="muted small">آخر ${ui.number(logs.length)} حدث</span>
           </div>
@@ -210,6 +364,21 @@
       });
 
       container.querySelector('#add-type').addEventListener('click', () => leaveTypeDialog(App));
+      container.querySelector('#add-key').addEventListener('click', () => apiKeyDialog(scopes, App));
+
+      container.querySelectorAll('[data-revoke]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const key = keys.find((k) => String(k.id) === button.dataset.revoke);
+          const ok = await ui.confirm('إلغاء مفتاح الربط',
+            `سيتوقف عمل «${key.name}» فوراً وسيفشل أي نظام يستخدمه. لا يمكن التراجع.`, 'إلغاء المفتاح');
+          if (!ok) return;
+          try {
+            const result = await api.post(`/api-keys/${key.id}/revoke`);
+            ui.toast(result.message, 'success');
+            App.refresh();
+          } catch (error) { ui.fail(error); }
+        });
+      });
 
       container.querySelectorAll('[data-del-type]').forEach((button) => {
         button.addEventListener('click', async () => {

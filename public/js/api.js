@@ -17,7 +17,15 @@
       opts.body = JSON.stringify(body);
     }
 
-    const response = await fetch(`/api${path}`, opts);
+    let response;
+    try {
+      response = await fetch(`/api${path}`, opts);
+    } catch (networkError) {
+      // فشل الشبكة نفسه: نميّزه ليتعامل معه الطابور المؤجّل
+      const error = new Error('لا يوجد اتصال بالشبكة');
+      error.offline = true;
+      throw error;
+    }
 
     if (response.status === 401 && !path.startsWith('/auth/')) {
       global.dispatchEvent(new CustomEvent('session-expired'));
@@ -34,8 +42,12 @@
       const error = new Error(payload.error || 'تعذّر تنفيذ الطلب');
       error.status = response.status;
       error.details = payload.details;
+      error.offline = Boolean(payload.offline);
       throw error;
     }
+
+    // ترويسة يضيفها عامل الخدمة عندما تأتي البيانات من ذاكرة محلية
+    payload.fromCache = response.headers.get('X-From-Cache') === '1';
     return payload;
   }
 

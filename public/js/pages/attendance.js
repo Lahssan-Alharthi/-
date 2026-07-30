@@ -191,9 +191,9 @@
         button.addEventListener('click', async () => {
           button.disabled = true;
           try {
-            const result = await api.post(path);
-            ui.toast(result.message, 'success');
-            App.refresh();
+            const result = await pwa.markAttendance(path);
+            ui.toast(result.message, result.queued ? 'warn' : 'success');
+            if (!result.queued) App.refresh();
           } catch (error) { ui.fail(error); button.disabled = false; }
         });
       };

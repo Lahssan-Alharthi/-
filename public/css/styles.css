@@ -468,6 +468,41 @@ select { cursor: pointer; }
 }
 .money { font-variant-numeric: tabular-nums; font-weight: 600; }
 
+/* ---------- شريط حالة الاتصال ---------- */
+.offline-bar {
+  position: fixed; bottom: 0; inset-inline: 0; z-index: 400;
+  background: var(--text); color: #fff;
+  padding: .55rem 1rem; font-size: .85rem; text-align: center;
+  display: flex; align-items: center; justify-content: center; gap: .5rem;
+  box-shadow: 0 -2px 12px rgba(15, 23, 42, .2);
+}
+.offline-bar.pending-only { background: var(--warn); }
+
+/* لا يحجب الشريط آخر سطر من المحتوى */
+body:has(.offline-bar) .content { padding-bottom: 3.5rem; }
+
+/* ---------- مفاتيح الربط ---------- */
+.key-value {
+  display: block; width: 100%; padding: .7rem .8rem;
+  background: #0f172a; color: #7ee2b8; border-radius: var(--radius-sm);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: .82rem; word-break: break-all; direction: ltr; text-align: left;
+  border: none;
+}
+.scope-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .35rem;
+}
+.scope-grid label {
+  display: flex; align-items: flex-start; gap: .5rem; font-weight: 400;
+  padding: .45rem .6rem; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: .85rem; cursor: pointer;
+}
+.scope-grid label:hover { background: var(--bg); }
+.scope-grid input { width: auto; margin-top: .25rem; flex: none; }
+.scope-grid code {
+  display: block; font-size: .74rem; color: var(--muted); direction: ltr; text-align: left;
+}
+
 /* ---------- أدوات ---------- */
 .muted { color: var(--muted); }
 .small { font-size: .82rem; }
