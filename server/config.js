@@ -36,6 +36,27 @@ const config = {
   payroll: {
     overtimeRatePerHour: 1.5, // من أجر الساعة
 
+    // الحد الأقصى الافتراضي لعدد أقساط السلفة
+    maxLoanInstallments: 24,
+
+    /**
+     * مكافأة نهاية الخدمة — نظام العمل السعودي (المادتان 84 و 85).
+     * ⚠️ راجع النسب مع المختص القانوني قبل الاعتماد في مخالصة فعلية.
+     */
+    endOfService: {
+      includeAllowances: true, // يُحسب الأجر شاملاً البدلات الثابتة
+      firstTierYears: 5,       // الشريحة الأولى من الخدمة
+      firstTierMonths: 0.5,    // نصف أجر شهر لكل سنة فيها
+      laterTierMonths: 1,      // أجر شهر كامل لكل سنة بعدها
+      // نسبة الاستحقاق عند الاستقالة حسب مدة الخدمة
+      resignationTiers: [
+        { minYears: 0, maxYears: 2, factor: 0 },
+        { minYears: 2, maxYears: 5, factor: 1 / 3 },
+        { minYears: 5, maxYears: 10, factor: 2 / 3 },
+        { minYears: 10, maxYears: null, factor: 1 },
+      ],
+    },
+
     /**
      * التأمينات الاجتماعية — تُحتسب على (الراتب الأساسي + بدل السكن).
      *

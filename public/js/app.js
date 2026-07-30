@@ -15,6 +15,7 @@
       { route: 'leaves', label: 'الإجازات', icon: '🌴' },
       { route: 'requests', label: 'طلبات الخدمات', icon: '📝' },
       { route: 'payroll', label: 'الرواتب', icon: '💰' },
+      { route: 'settlements', label: 'السلف والمخالصات', icon: '🧾' },
       { route: 'documents', label: 'المستندات', icon: '📁' },
     ] },
     { group: 'العمليات اللوجستية', items: [
@@ -37,6 +38,7 @@
     leaves: 'الإجازات',
     requests: 'طلبات الخدمات',
     payroll: 'الرواتب وإشعارات الراتب',
+    settlements: 'السلف ومخالصات نهاية الخدمة',
     documents: 'المستندات',
     trips: 'الرحلات والشحنات',
     fleet: 'إدارة الأسطول',

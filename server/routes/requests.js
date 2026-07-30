@@ -8,6 +8,8 @@ const { isPrivileged } = require('../utils/rbac');
 const audit = require('../utils/audit');
 const notify = require('../utils/notify');
 const hooks = require('../utils/webhooks');
+const loansUtil = require('../utils/loans');
+const config = require('../config');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -110,6 +112,34 @@ router.post('/:id/decision', requirePermission('requests:decide'), asyncHandler(
     [decision, req.body.response || null, req.user.id, decision, id],
   );
 
+  // اعتماد السلفة يُنشئ جدول أقساط يُخصم شهرياً من الراتب
+  let loanId = null;
+  if (decision === 'approved' && request.type === 'سلفة' && request.amount > 0) {
+    const existing = db.get('SELECT id FROM loans WHERE request_id = ?', [id]);
+    if (!existing) {
+      // صاحب الصلاحية يحدّد عدد الأقساط أو مبلغ القسط عند الاعتماد
+      const schedule = loansUtil.resolveSchedule(request.amount, {
+        installments: req.body.installments,
+        monthlyAmount: req.body.monthly_amount,
+      });
+      if (schedule.error) throw badRequest(schedule.error);
+      const installments = Math.min(schedule.installments, config.payroll.maxLoanInstallments);
+
+      const now = new Date();
+      loanId = loansUtil.createLoan({
+        employeeId: request.employee_id,
+        requestId: id,
+        amount: request.amount,
+        installments,
+        monthlyAmount: schedule.monthly,
+        startYear: Number(req.body.start_year) || now.getFullYear(),
+        startMonth: Number(req.body.start_month) || now.getMonth() + 1,
+        approvedBy: req.user.id,
+        notes: req.body.response || null,
+      });
+    }
+  }
+
   const labels = { approved: 'تم اعتماد طلبك', rejected: 'تم رفض طلبك', in_progress: 'طلبك قيد المعالجة' };
   notify.push(request.employee_id, labels[decision], `${request.type} — ${request.subject}`, '#/requests');
 
@@ -118,7 +148,14 @@ router.post('/:id/decision', requirePermission('requests:decide'), asyncHandler(
     request_id: id, type: request.type, subject: request.subject,
     amount: request.amount, decision, decided_by: req.user.full_name_ar,
   });
-  res.json({ data: db.get(`${SELECT_BASE} WHERE r.id = ?`, [id]), message: labels[decision] });
+  const loan = loanId ? loansUtil.present(db.get('SELECT * FROM loans WHERE id = ?', [loanId])) : null;
+  res.json({
+    data: db.get(`${SELECT_BASE} WHERE r.id = ?`, [id]),
+    loan,
+    message: loan
+      ? `${labels[decision]} — ستُخصم على ${loan.installments} قسط بمقدار ${loan.monthly_amount} ر.س شهرياً`
+      : labels[decision],
+  });
 }));
 
 router.post('/:id/cancel', asyncHandler(async (req, res) => {

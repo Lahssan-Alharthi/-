@@ -9,6 +9,7 @@ const dates = require('../utils/dates');
 const audit = require('../utils/audit');
 const notify = require('../utils/notify');
 const { computeGosi, hasNationality } = require('../utils/gosi');
+const loans = require('../utils/loans');
 const hooks = require('../utils/webhooks');
 
 const router = express.Router();
@@ -51,17 +52,11 @@ function computePayslip(employee, year, month) {
   const absenceDeduction = round2(absentDays * dailyRate);
   const gosi = computeGosi(employee, year);
 
-  // السلف المعتمدة تُخصم بالكامل في الشهر الذي اعتُمدت فيه
-  const loans = db.get(
-    `SELECT COALESCE(SUM(amount), 0) AS total
-       FROM service_requests
-      WHERE employee_id = ? AND type = 'سلفة' AND status = 'approved'
-        AND decided_at BETWEEN ? AND ?`,
-    [employee.id, `${from} 00:00:00`, `${to} 23:59:59`],
-  ).total;
+  // قسط السلف المستحقّ على هذا الشهر (لا السلفة كاملة)
+  const loanDue = loans.installmentDue(employee.id, year, month).total;
 
   const gross = round2(basic + housing + transport + other + overtimeAmount);
-  const deductions = round2(gosi.employee_amount + absenceDeduction + loans);
+  const deductions = round2(gosi.employee_amount + absenceDeduction + loanDue);
 
   return {
     basic_salary: round2(basic),
@@ -77,7 +72,7 @@ function computePayslip(employee, year, month) {
     gosi_tier: gosi.tier,
     gosi_wage: gosi.contributory_wage,
     absence_deduction: absenceDeduction,
-    loan_deduction: round2(loans),
+    loan_deduction: round2(loanDue),
     other_deduction: 0,
     absent_days: absentDays,
     gross_amount: gross,
@@ -195,10 +190,16 @@ router.post('/runs/:id/approve', requirePermission('payroll:approve'), asyncHand
   if (!run) throw notFound('المسيّر غير موجود');
   if (run.status !== 'draft') throw conflict('تم اعتماد هذا المسيّر مسبقاً');
 
-  db.run(
-    "UPDATE payroll_runs SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?",
-    [req.user.id, id],
-  );
+  db.transaction(() => {
+    db.run(
+      "UPDATE payroll_runs SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?",
+      [req.user.id, id],
+    );
+
+    // تسجيل أقساط السلف المخصومة في هذا المسيّر بعد اعتماده
+    db.all('SELECT employee_id, loan_deduction FROM payslips WHERE run_id = ? AND loan_deduction > 0', [id])
+      .forEach((slip) => loans.recordPayments(slip.employee_id, run.year, run.month, id));
+  });
 
   const recipients = db.all('SELECT employee_id FROM payslips WHERE run_id = ?', [id]);
   notify.pushMany(recipients.map((r) => r.employee_id), 'صدر إشعار راتبك',
