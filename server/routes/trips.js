@@ -6,6 +6,7 @@ const { asyncHandler, badRequest, notFound, forbidden, conflict } = require('../
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const audit = require('../utils/audit');
 const notify = require('../utils/notify');
+const hooks = require('../utils/webhooks');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -114,6 +115,10 @@ router.post('/', requirePermission('trips:create'), asyncHandler(async (req, res
   }
 
   audit.log(req, 'create', 'trips', id, { code });
+  hooks.emit('trip.created', {
+    code, origin: body.origin, destination: body.destination,
+    client_name: body.client_name || null, status: 'planned',
+  });
   res.status(201).json({ data: db.get(`${SELECT_BASE} WHERE t.id = ?`, [id]), message: `تم إنشاء الرحلة ${code}` });
 }));
 
@@ -189,6 +194,10 @@ router.post('/:id/status', asyncHandler(async (req, res) => {
   });
 
   audit.log(req, 'status_change', 'trips', id, { status });
+  hooks.emit('trip.status_changed', {
+    code: trip.code, previous_status: trip.status, status,
+    origin: trip.origin, destination: trip.destination,
+  });
   res.json({ data: db.get(`${SELECT_BASE} WHERE t.id = ?`, [id]), message: 'تم تحديث حالة الرحلة' });
 }));
 

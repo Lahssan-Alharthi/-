@@ -5,6 +5,7 @@ const db = require('../db');
 const { asyncHandler, badRequest, notFound, conflict } = require('../utils/http');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const audit = require('../utils/audit');
+const hooks = require('../utils/webhooks');
 const notify = require('../utils/notify');
 
 const router = express.Router();
@@ -162,6 +163,11 @@ router.post('/:id/maintenance', requirePermission('fleet:update'), asyncHandler(
   }
 
   audit.log(req, 'maintenance', 'vehicles', id);
+  hooks.emit('vehicle.maintenance', {
+    plate_no: vehicle.plate_no, type: vehicle.type,
+    date: req.body.date || new Date().toISOString().slice(0, 10),
+    next_maintenance: req.body.next_maintenance || null,
+  });
   res.json({ data: db.get(`${SELECT_BASE} WHERE v.id = ?`, [id]), message: 'تم تسجيل الصيانة' });
 }));
 

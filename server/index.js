@@ -59,6 +59,7 @@ app.use('/api/notifications', misc.notifications);
 app.use('/api/audit', misc.audit);
 app.use('/api/settings', misc.settings);
 app.use('/api/api-keys', require('./routes/apikeys'));
+app.use('/api/webhooks', require('./routes/webhooks'));
 
 // واجهة الربط للأنظمة الخارجية — توثيق بمفتاح لا بجلسة مستخدم
 app.use('/api/v1', require('./routes/v1'));

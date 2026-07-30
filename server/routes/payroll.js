@@ -9,6 +9,7 @@ const dates = require('../utils/dates');
 const audit = require('../utils/audit');
 const notify = require('../utils/notify');
 const { computeGosi, hasNationality } = require('../utils/gosi');
+const hooks = require('../utils/webhooks');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -48,7 +49,7 @@ function computePayslip(employee, year, month) {
 
   const overtimeAmount = round2(overtimeHours * hourlyRate * config.payroll.overtimeRatePerHour);
   const absenceDeduction = round2(absentDays * dailyRate);
-  const gosi = computeGosi(employee);
+  const gosi = computeGosi(employee, year);
 
   // السلف المعتمدة تُخصم بالكامل في الشهر الذي اعتُمدت فيه
   const loans = db.get(
@@ -73,6 +74,7 @@ function computePayslip(employee, year, month) {
     gosi_employer: gosi.employer_amount,
     gosi_total: gosi.total_amount,
     gosi_category: gosi.category,
+    gosi_tier: gosi.tier,
     gosi_wage: gosi.contributory_wage,
     absence_deduction: absenceDeduction,
     loan_deduction: round2(loans),
@@ -150,13 +152,13 @@ router.post('/runs', requirePermission('payroll:create'), asyncHandler(async (re
       db.run(
         `INSERT INTO payslips (run_id, employee_id, basic_salary, housing_allowance,
             transport_allowance, other_allowance, overtime_amount, gosi_deduction,
-            gosi_employer, gosi_total, gosi_category, gosi_wage,
+            gosi_employer, gosi_total, gosi_category, gosi_tier, gosi_wage,
             absence_deduction, loan_deduction, other_deduction, gross_amount, net_amount,
             absent_days, overtime_hours)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [id, employee.id, slip.basic_salary, slip.housing_allowance, slip.transport_allowance,
           slip.other_allowance, slip.overtime_amount, slip.gosi_deduction,
-          slip.gosi_employer, slip.gosi_total, slip.gosi_category, slip.gosi_wage,
+          slip.gosi_employer, slip.gosi_total, slip.gosi_category, slip.gosi_tier, slip.gosi_wage,
           slip.absence_deduction, slip.loan_deduction, slip.other_deduction,
           slip.gross_amount, slip.net_amount, slip.absent_days, slip.overtime_hours],
       );
@@ -203,6 +205,13 @@ router.post('/runs/:id/approve', requirePermission('payroll:approve'), asyncHand
     `راتب شهر ${MONTH_NAMES[run.month - 1]} ${run.year} متاح الآن`, '#/payroll');
 
   audit.log(req, 'approve', 'payroll_runs', id);
+  hooks.emit('payroll.approved', {
+    run_id: id, year: run.year, month: run.month,
+    employees_count: recipients.length,
+    total_gross: run.total_gross, total_net: run.total_net,
+    total_gosi_employer: run.total_gosi_employer,
+    approved_by: req.user.full_name_ar,
+  });
   res.json({ ok: true, message: 'تم اعتماد المسيّر وإشعار الموظفين' });
 }));
 

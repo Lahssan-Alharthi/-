@@ -8,6 +8,7 @@ const { isPrivileged } = require('../utils/rbac');
 const dates = require('../utils/dates');
 const audit = require('../utils/audit');
 const notify = require('../utils/notify');
+const hooks = require('../utils/webhooks');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -164,6 +165,11 @@ router.post('/', asyncHandler(async (req, res) => {
     `${employee.full_name_ar} — ${type.name_ar} (${days} يوم)`, '#/leaves');
 
   audit.log(req, 'create', 'leaves', id, { days, type: type.code });
+  hooks.emit('leave.requested', {
+    leave_id: id, employee_no: db.get('SELECT employee_no FROM employees WHERE id = ?', [employeeId]).employee_no,
+    employee_name: employee.full_name_ar, leave_type: type.code,
+    start_date: startDate, end_date: endDate, days,
+  });
   res.status(201).json({
     data: db.get(`${SELECT_BASE} WHERE l.id = ?`, [id]),
     message: 'تم إرسال طلب الإجازة للاعتماد',
@@ -211,6 +217,11 @@ router.post('/:id/decision', requirePermission('leaves:decide'), asyncHandler(as
     `${leave.leave_type_name} من ${leave.start_date} إلى ${leave.end_date}`, '#/leaves');
 
   audit.log(req, decision === 'approved' ? 'approve' : 'reject', 'leaves', id);
+  hooks.emit('leave.decided', {
+    leave_id: id, employee_no: leave.employee_no, employee_name: leave.employee_name,
+    leave_type: leave.leave_type_code, start_date: leave.start_date, end_date: leave.end_date,
+    days: leave.days, decision, decided_by: req.user.full_name_ar,
+  });
   res.json({
     data: db.get(`${SELECT_BASE} WHERE l.id = ?`, [id]),
     message: decision === 'approved' ? 'تم اعتماد الطلب' : 'تم رفض الطلب',

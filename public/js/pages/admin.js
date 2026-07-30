@@ -195,6 +195,108 @@
     });
   }
 
+  /** نافذة إنشاء أو تعديل اشتراك أحداث. */
+  function webhookDialog(events, existing, App) {
+    const w = existing || {};
+    const modal = ui.modal(existing ? `تعديل الاشتراك: ${w.name}` : 'إضافة اشتراك أحداث', `
+      <form id="hook-form">
+        <div class="form-grid">
+          <div class="field">
+            <label>اسم الاشتراك *</label>
+            <input type="text" name="name" required value="${ui.esc(w.name || '')}"
+                   placeholder="نظام المحاسبة — إشعارات الرواتب">
+          </div>
+          <div class="field">
+            <label>الرابط المستقبِل *</label>
+            <input type="url" name="url" required value="${ui.esc(w.url || '')}" dir="ltr"
+                   placeholder="https://erp.example.com/hooks/madad">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>الأحداث المشترَك فيها *</label>
+          <div class="scope-grid">
+            ${Object.entries(events).map(([event, label]) => `
+              <label>
+                <input type="checkbox" name="event" value="${ui.esc(event)}"
+                  ${w.events && w.events.includes(event) ? 'checked' : ''}>
+                <span>${ui.esc(label)}<code>${ui.esc(event)}</code></span>
+              </label>`).join('')}
+          </div>
+        </div>
+
+        ${existing ? `
+          <label class="checkbox">
+            <input type="checkbox" name="is_active" ${w.is_active ? 'checked' : ''}> الاشتراك مفعّل
+          </label>` : ''}
+
+        <p class="small muted mt-1 mb-0">
+          يُرسل كل حدث بطلب <code>POST</code> موقّع بترويسة <code>X-Madad-Signature</code>
+          بخوارزمية HMAC-SHA256، وتُعاد المحاولة حتى 4 مرات بتباعد متدرّج عند فشل التسليم.
+        </p>
+      </form>`, {
+      wide: true,
+      footer: `<button class="btn" form="hook-form" type="submit">${existing ? 'حفظ' : 'إضافة الاشتراك'}</button>`,
+    });
+
+    modal.el.querySelector('#hook-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      const selected = [...form.querySelectorAll('input[name=event]:checked')].map((i) => i.value);
+
+      if (!selected.length) {
+        ui.toast('يجب اختيار حدث واحد على الأقل', 'error');
+        return;
+      }
+
+      const body = { name: form.name.value, url: form.url.value, events: selected };
+      if (existing) body.is_active = form.is_active ? form.is_active.checked : true;
+
+      try {
+        const result = existing
+          ? await api.put(`/webhooks/${existing.id}`, body)
+          : await api.post('/webhooks', body);
+
+        modal.close();
+
+        if (result.secret) {
+          ui.modal('سر التحقّق من التوقيع', `
+            <p class="badge warn" style="display:block;margin-bottom:1rem">${ui.esc(result.message)}</p>
+            <div class="field">
+              <label>السر</label>
+              <input class="key-value" value="${ui.esc(result.secret)}" readonly>
+            </div>
+            <p class="small muted mb-0">
+              يتحقّق النظام المستقبِل من التوقيع بحساب
+              <code dir="ltr">HMAC-SHA256(secret, timestamp + "." + body)</code>
+              ومقارنته بقيمة ترويسة <code>X-Madad-Signature</code>.
+            </p>`, { wide: true, footer: null });
+        } else {
+          ui.toast(result.message, 'success');
+        }
+        App.refresh();
+      } catch (error) { ui.fail(error); }
+    });
+  }
+
+  /** يعرض سجل محاولات التسليم لاشتراك. */
+  async function showDeliveries(webhook) {
+    const result = await api.get(`/webhooks/${webhook.id}/deliveries`);
+    ui.modal(`سجل التسليم: ${webhook.name}`, ui.table([
+      { title: 'الوقت', render: (r) => ui.dateTime(r.created_at) },
+      { title: 'الحدث', render: (r) => `<code>${ui.esc(r.event)}</code>` },
+      { title: 'المحاولة', cls: 'num', key: 'attempt' },
+      {
+        title: 'النتيجة',
+        render: (r) => (r.status_code && r.status_code < 400
+          ? `<span class="badge ok">${r.status_code}</span>`
+          : `<span class="badge danger">${r.status_code || 'فشل'}</span>`),
+      },
+      { title: 'المدة', cls: 'num', render: (r) => (r.duration_ms ? `${ui.number(r.duration_ms)} م.ث` : '—') },
+      { title: 'الخطأ', cls: 'wrap', render: (r) => `<span class="small muted">${ui.esc(r.error || '')}</span>` },
+    ], result.data, 'لا توجد محاولات تسليم بعد'), { wide: true, footer: null });
+  }
+
   global.PAGES.admin = {
     async render(container, App) {
       if (!App.hasRole('admin')) {
@@ -202,18 +304,23 @@
         return;
       }
 
-      const [settingsResult, auditResult, typesResult, keysResult, scopesResult] = await Promise.all([
+      const [settingsResult, auditResult, typesResult, keysResult, scopesResult,
+        hooksResult, eventsResult] = await Promise.all([
         api.get('/settings'),
         api.get('/audit?limit=150'),
         api.get('/leaves/types'),
         api.get('/api-keys'),
         api.get('/api-keys/scopes'),
+        api.get('/webhooks'),
+        api.get('/webhooks/events'),
       ]);
 
       const settings = settingsResult.data;
       const logs = auditResult.data;
       const keys = keysResult.data;
       const scopes = scopesResult.data;
+      const webhooks = hooksResult.data;
+      const events = eventsResult.data;
 
       container.innerHTML = `
         <div class="grid grid-2">
@@ -330,6 +437,57 @@
 
         <div class="card">
           <div class="card-head">
+            <h3>دفع الأحداث إلى الأنظمة (Webhooks)</h3><div class="spacer"></div>
+            <button class="btn accent" id="add-hook">+ اشتراك أحداث</button>
+          </div>
+          <div class="card-body">
+            <p class="small muted">
+              بدل أن تسأل الأنظمة الخارجية البوابة باستمرار، تدفع البوابة الأحداث إليها لحظة وقوعها:
+              اعتماد إجازة، صدور مسيّر رواتب، تغيّر حالة رحلة، وغيرها. كل طلب موقّع، ويُعاد
+              حتى 4 مرات بتباعد متدرّج عند الفشل، ويتوقّف الاشتراك تلقائياً بعد 10 أعطال متتالية.
+            </p>
+          </div>
+          <div class="card-body tight">
+            ${ui.table([
+    { title: 'الاسم', render: (r) => `<b>${ui.esc(r.name)}</b>` },
+    { title: 'الرابط', cls: 'wrap', render: (r) => `<code class="small" dir="ltr">${ui.esc(r.url)}</code>` },
+    {
+      title: 'الأحداث',
+      cls: 'wrap',
+      render: (r) => r.events.map((e) => `<span class="badge neutral" style="margin:1px"><code>${ui.esc(e)}</code></span>`).join(' '),
+    },
+    { title: 'التسليمات', cls: 'num', render: (r) => ui.number(r.deliveries_count) },
+    { title: 'آخر تسليم', render: (r) => (r.last_delivery_at ? ui.ago(r.last_delivery_at) : '—') },
+    {
+      title: 'آخر حالة',
+      render: (r) => {
+        if (!r.last_status) return '—';
+        return r.last_status < 400
+          ? `<span class="badge ok">${r.last_status}</span>`
+          : `<span class="badge danger">${r.last_status}</span>`;
+      },
+    },
+    {
+      title: 'الحالة',
+      render: (r) => (r.is_active
+        ? '<span class="badge ok">مفعّل</span>'
+        : `<span class="badge danger">موقوف</span>${r.disabled_reason ? `<div class="small muted">${ui.esc(r.disabled_reason)}</div>` : ''}`),
+    },
+    {
+      title: 'إجراءات',
+      render: (r) => `<div class="btn-row">
+                        <button class="btn sm" data-test-hook="${r.id}">اختبار</button>
+                        <button class="btn sm secondary" data-log-hook="${r.id}">السجل</button>
+                        <button class="btn sm secondary" data-edit-hook="${r.id}">تعديل</button>
+                        <button class="btn sm danger" data-del-hook="${r.id}">حذف</button>
+                      </div>`,
+    },
+  ], webhooks, 'لا توجد اشتراكات أحداث بعد')}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
             <h3>سجل نشاط النظام</h3><div class="spacer"></div>
             <span class="muted small">آخر ${ui.number(logs.length)} حدث</span>
           </div>
@@ -365,6 +523,46 @@
 
       container.querySelector('#add-type').addEventListener('click', () => leaveTypeDialog(App));
       container.querySelector('#add-key').addEventListener('click', () => apiKeyDialog(scopes, App));
+
+      container.querySelector('#add-hook').addEventListener('click', () => webhookDialog(events, null, App));
+
+      container.querySelectorAll('[data-edit-hook]').forEach((button) => {
+        button.addEventListener('click', () => {
+          webhookDialog(events, webhooks.find((w) => String(w.id) === button.dataset.editHook), App);
+        });
+      });
+
+      container.querySelectorAll('[data-log-hook]').forEach((button) => {
+        button.addEventListener('click', () => {
+          showDeliveries(webhooks.find((w) => String(w.id) === button.dataset.logHook)).catch(ui.fail);
+        });
+      });
+
+      container.querySelectorAll('[data-test-hook]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          button.textContent = 'جارٍ…';
+          try {
+            const result = await api.post(`/webhooks/${button.dataset.testHook}/test`, {});
+            ui.toast(result.message, result.ok ? 'success' : 'error');
+            App.refresh();
+          } catch (error) { ui.fail(error); button.disabled = false; button.textContent = 'اختبار'; }
+        });
+      });
+
+      container.querySelectorAll('[data-del-hook]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const hook = webhooks.find((w) => String(w.id) === button.dataset.delHook);
+          const ok = await ui.confirm('حذف الاشتراك',
+            `سيتوقف دفع الأحداث إلى «${hook.name}» نهائياً.`, 'حذف');
+          if (!ok) return;
+          try {
+            const result = await api.del(`/webhooks/${hook.id}`);
+            ui.toast(result.message, 'success');
+            App.refresh();
+          } catch (error) { ui.fail(error); }
+        });
+      });
 
       container.querySelectorAll('[data-revoke]').forEach((button) => {
         button.addEventListener('click', async () => {

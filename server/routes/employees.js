@@ -8,6 +8,7 @@ const { hashPassword, generateTempPassword } = require('../utils/password');
 const { ROLE_KEYS, isPrivileged } = require('../utils/rbac');
 const { isValidDate } = require('../utils/dates');
 const audit = require('../utils/audit');
+const hooks = require('../utils/webhooks');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -16,7 +17,7 @@ const SELECT_BASE = `
   SELECT e.id, e.employee_no, e.national_id, e.full_name_ar, e.full_name_en, e.email, e.phone,
          e.role, e.job_title, e.department_id, e.manager_id, e.hire_date, e.contract_type,
          e.status, e.nationality, e.gender, e.birth_date, e.marital_status, e.address,
-         e.emergency_contact, e.emergency_phone, e.iqama_expiry, e.license_no, e.license_expiry,
+         e.emergency_contact, e.emergency_phone, e.iqama_expiry, e.gosi_join_date, e.license_no, e.license_expiry,
          e.basic_salary, e.housing_allowance, e.transport_allowance, e.other_allowance,
          e.bank_name, e.iban, e.annual_leave_balance, e.avatar, e.last_login_at, e.created_at,
          d.name_ar AS department_name,
@@ -47,7 +48,7 @@ const EDITABLE_BY_HR = [
   'employee_no', 'national_id', 'full_name_ar', 'full_name_en', 'email', 'phone', 'role',
   'job_title', 'department_id', 'manager_id', 'hire_date', 'contract_type', 'status',
   'nationality', 'gender', 'birth_date', 'marital_status', 'address', 'emergency_contact',
-  'emergency_phone', 'iqama_expiry', 'license_no', 'license_expiry', 'basic_salary',
+  'emergency_phone', 'iqama_expiry', 'gosi_join_date', 'license_no', 'license_expiry', 'basic_salary',
   'housing_allowance', 'transport_allowance', 'other_allowance', 'bank_name', 'iban',
   'annual_leave_balance',
 ];
@@ -202,6 +203,10 @@ router.post('/', requirePermission('employees:create'), asyncHandler(async (req,
 
   const id = Number(info.lastInsertRowid);
   audit.log(req, 'create', 'employees', id, { employee_no: employeeNo, email });
+  hooks.emit('employee.created', {
+    employee_no: employeeNo, full_name_ar: body.full_name_ar, email,
+    job_title: body.job_title || null, role,
+  });
 
   res.status(201).json({
     data: db.get(`${SELECT_BASE} WHERE e.id = ?`, [id]),
@@ -293,6 +298,9 @@ router.delete('/:id', requirePermission('employees:delete'), asyncHandler(async 
 
   db.run("UPDATE employees SET status = 'terminated', updated_at = datetime('now') WHERE id = ?", [id]);
   audit.log(req, 'terminate', 'employees', id);
+  hooks.emit('employee.terminated', {
+    employee_no: db.get('SELECT employee_no FROM employees WHERE id = ?', [id]).employee_no,
+  });
 
   res.json({ ok: true, message: 'تم إنهاء خدمة الموظف وأرشفة حسابه' });
 }));
