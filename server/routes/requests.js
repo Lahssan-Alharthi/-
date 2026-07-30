@@ -7,6 +7,7 @@ const { requireAuth, requirePermission } = require('../middleware/auth');
 const { isPrivileged } = require('../utils/rbac');
 const audit = require('../utils/audit');
 const notify = require('../utils/notify');
+const hooks = require('../utils/webhooks');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -113,6 +114,10 @@ router.post('/:id/decision', requirePermission('requests:decide'), asyncHandler(
   notify.push(request.employee_id, labels[decision], `${request.type} — ${request.subject}`, '#/requests');
 
   audit.log(req, 'decide', 'service_requests', id, { decision });
+  hooks.emit('request.decided', {
+    request_id: id, type: request.type, subject: request.subject,
+    amount: request.amount, decision, decided_by: req.user.full_name_ar,
+  });
   res.json({ data: db.get(`${SELECT_BASE} WHERE r.id = ?`, [id]), message: labels[decision] });
 }));
 

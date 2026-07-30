@@ -1,0 +1,55 @@
+name: الاختبارات
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: تشغيل الاختبارات
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.x هو الحد الأدنى المدعوم (لوحدة node:sqlite)، و 24.x للتأكّد من التوافق المستقبلي
+        node-version: ['22.x', '24.x']
+
+    steps:
+      - name: جلب الكود
+        uses: actions/checkout@v4
+
+      - name: تهيئة Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: تثبيت الاعتماديات
+        run: npm ci
+
+      - name: تشغيل الاختبارات
+        run: npm test
+
+      - name: التحقّق من تهيئة قاعدة البيانات والبيانات التجريبية
+        run: npm run reset
+
+      - name: التحقّق من إقلاع الخادم واستجابته
+        run: |
+          npm start &
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then
+              echo "الخادم يعمل"
+              curl -fsS http://127.0.0.1:3000/api/health
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "تعذّر إقلاع الخادم" && exit 1
+
+      - name: التحقّق من إمكانية توليد الأيقونات
+        run: |
+          npm run icons
+          test -f public/icons/icon-512.png

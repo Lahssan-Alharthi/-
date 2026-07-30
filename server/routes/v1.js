@@ -12,6 +12,7 @@ const { asyncHandler, badRequest, notFound, conflict } = require('../utils/http'
 const { requireApiKey, requireScope, logApiWrite } = require('../middleware/apiauth');
 const { computeMetrics } = require('./attendance');
 const dates = require('../utils/dates');
+const hooks = require('../utils/webhooks');
 
 const router = express.Router();
 router.use(requireApiKey);
@@ -214,6 +215,13 @@ router.post('/attendance', requireScope('attendance:write'), asyncHandler(async 
 
   logApiWrite(req, 'attendance_push', 'attendance', null,
     { received: records.length, accepted, rejected: records.length - accepted });
+
+  if (accepted) {
+    hooks.emit('attendance.recorded', {
+      source: 'api', api_key: req.apiKey.name, accepted,
+      records: results.filter((r) => r.ok).map((r) => ({ employee_no: r.employee_no, date: r.date })),
+    });
+  }
 
   res.status(accepted === records.length ? 201 : 207).json({
     received: records.length,

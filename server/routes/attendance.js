@@ -8,6 +8,7 @@ const { requireAuth, requirePermission } = require('../middleware/auth');
 const { isPrivileged } = require('../utils/rbac');
 const dates = require('../utils/dates');
 const audit = require('../utils/audit');
+const hooks = require('../utils/webhooks');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -128,6 +129,10 @@ router.post('/check-in', asyncHandler(async (req, res) => {
   }
 
   audit.log(req, 'check_in', 'attendance', null, { date, time });
+  hooks.emit('attendance.recorded', {
+    employee_no: req.user.employee_no, employee_name: req.user.full_name_ar,
+    date, action: 'check_in', time, late_minutes: metrics.late_minutes,
+  });
   const record = db.get('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', [req.user.id, date]);
 
   res.json({
@@ -156,6 +161,10 @@ router.post('/check-out', asyncHandler(async (req, res) => {
   );
 
   audit.log(req, 'check_out', 'attendance', record.id, { date, time });
+  hooks.emit('attendance.recorded', {
+    employee_no: req.user.employee_no, employee_name: req.user.full_name_ar,
+    date, action: 'check_out', time, work_minutes: metrics.work_minutes,
+  });
   res.json({
     data: db.get('SELECT * FROM attendance WHERE id = ?', [record.id]),
     message: `تم تسجيل الانصراف الساعة ${time} — مدة العمل ${(metrics.work_minutes / 60).toFixed(1)} ساعة`,

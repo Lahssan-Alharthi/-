@@ -415,13 +415,13 @@ function seed() {
         db.run(
           `INSERT INTO payslips (run_id, employee_id, basic_salary, housing_allowance,
               transport_allowance, other_allowance, overtime_amount, gosi_deduction,
-              gosi_employer, gosi_total, gosi_category, gosi_wage,
+              gosi_employer, gosi_total, gosi_category, gosi_tier, gosi_wage,
               absence_deduction, loan_deduction, other_deduction, gross_amount, net_amount,
               absent_days, overtime_hours)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [runId, employee.id, slip.basic_salary, slip.housing_allowance, slip.transport_allowance,
             slip.other_allowance, slip.overtime_amount, slip.gosi_deduction,
-            slip.gosi_employer, slip.gosi_total, slip.gosi_category, slip.gosi_wage,
+            slip.gosi_employer, slip.gosi_total, slip.gosi_category, slip.gosi_tier, slip.gosi_wage,
             slip.absence_deduction, slip.loan_deduction, slip.other_deduction,
             slip.gross_amount, slip.net_amount, slip.absent_days, slip.overtime_hours],
         );

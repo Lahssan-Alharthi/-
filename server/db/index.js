@@ -23,6 +23,8 @@ const ADDED_COLUMNS = [
   ['payslips', 'gosi_category', 'TEXT'],
   ['payslips', 'gosi_wage', 'REAL NOT NULL DEFAULT 0'],
   ['payroll_runs', 'total_gosi_employer', 'REAL NOT NULL DEFAULT 0'],
+  ['employees', 'gosi_join_date', 'TEXT'],
+  ['payslips', 'gosi_tier', 'TEXT'],
 ];
 
 /** يضيف عموداً إلى جدول قائم إن لم يكن موجوداً. */

@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS employees (
   emergency_contact     TEXT,
   emergency_phone       TEXT,
   iqama_expiry          TEXT,
+  gosi_join_date        TEXT,   -- تاريخ بدء الاشتراك في التأمينات (افتراضه تاريخ التعيين)
   license_no            TEXT,
   license_expiry        TEXT,
   basic_salary          REAL    NOT NULL DEFAULT 0,
@@ -136,6 +137,7 @@ CREATE TABLE IF NOT EXISTS payslips (
   gosi_employer        REAL NOT NULL DEFAULT 0,   -- حصة صاحب العمل، تكلفة على الشركة
   gosi_total           REAL NOT NULL DEFAULT 0,
   gosi_category        TEXT,                      -- saudi أو non_saudi
+  gosi_tier            TEXT,                      -- base أو progressive:YYYY أو occupational_hazards
   gosi_wage            REAL NOT NULL DEFAULT 0,   -- الوعاء الخاضع للاشتراك
   absence_deduction    REAL NOT NULL DEFAULT 0,
   loan_deduction       REAL NOT NULL DEFAULT 0,
@@ -276,6 +278,37 @@ CREATE TABLE IF NOT EXISTS api_keys (
 );
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+
+-- اشتراكات دفع الأحداث إلى الأنظمة الخارجية
+CREATE TABLE IF NOT EXISTS webhooks (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  name              TEXT    NOT NULL,
+  url               TEXT    NOT NULL,
+  secret            TEXT    NOT NULL,
+  events            TEXT    NOT NULL DEFAULT '',
+  is_active         INTEGER NOT NULL DEFAULT 1,
+  created_by        INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+  last_delivery_at  TEXT,
+  last_status       INTEGER,
+  failure_streak    INTEGER NOT NULL DEFAULT 0,
+  disabled_at       TEXT,
+  disabled_reason   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  webhook_id   INTEGER NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  event        TEXT    NOT NULL,
+  payload      TEXT,
+  attempt      INTEGER NOT NULL DEFAULT 1,
+  status_code  INTEGER,
+  error        TEXT,
+  duration_ms  INTEGER,
+  created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_deliveries_webhook ON webhook_deliveries(webhook_id, created_at);
 
 CREATE TABLE IF NOT EXISTS settings (
   key         TEXT PRIMARY KEY,
