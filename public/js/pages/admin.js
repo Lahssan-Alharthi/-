@@ -27,6 +27,7 @@
     status_change: 'تغيير حالة',
     revoke: 'إلغاء مفتاح',
     test: 'اختبار تسليم',
+    pay: 'تعليم كمصروف',
     'api:attendance_push': 'دفع حضور من نظام خارجي',
     'api:trip_create': 'إنشاء رحلة من نظام خارجي',
     'api:trip_status': 'تحديث حالة رحلة من نظام خارجي',
@@ -49,6 +50,8 @@
     api_keys: 'مفاتيح الربط',
     webhooks: 'اشتراكات الأحداث',
     notifications: 'الإشعارات',
+    loans: 'السلف',
+    end_of_service: 'مخالصات نهاية الخدمة',
   };
 
   function leaveTypeDialog(App) {

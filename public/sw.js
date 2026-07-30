@@ -4,7 +4,7 @@
 'use strict';
 
 // عند تعديل ملفات الواجهة ارفع رقم الإصدار لتحديث الذاكرة المؤقتة
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `madad-shell-${VERSION}`;
 const DATA_CACHE = `madad-data-${VERSION}`;
 
@@ -26,6 +26,7 @@ const SHELL_ASSETS = [
   '/js/pages/attendance.js',
   '/js/pages/leaves.js',
   '/js/pages/payroll.js',
+  '/js/pages/settlements.js',
   '/js/pages/requests.js',
   '/js/pages/announcements.js',
   '/js/pages/documents.js',
@@ -45,6 +46,7 @@ const CACHEABLE_API = [
   '/api/requests',
   '/api/trips',
   '/api/payroll/my-payslips',
+  '/api/loans',
   '/api/notifications',
 ];
 

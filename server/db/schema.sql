@@ -310,6 +310,63 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
 
 CREATE INDEX IF NOT EXISTS idx_deliveries_webhook ON webhook_deliveries(webhook_id, created_at);
 
+-- السلف المعتمدة وأقساطها الشهرية
+CREATE TABLE IF NOT EXISTS loans (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id     INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  request_id      INTEGER REFERENCES service_requests(id) ON DELETE SET NULL,
+  amount          REAL    NOT NULL,
+  installments    INTEGER NOT NULL DEFAULT 1,
+  monthly_amount  REAL    NOT NULL,
+  start_year      INTEGER NOT NULL,
+  start_month     INTEGER NOT NULL,
+  status          TEXT    NOT NULL DEFAULT 'active',  -- active أو settled أو cancelled
+  notes           TEXT,
+  approved_by     INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  settled_at      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_loans_employee ON loans(employee_id, status);
+
+-- أقساط السلف المخصومة فعلياً في مسيّرات الرواتب المعتمدة
+CREATE TABLE IF NOT EXISTS loan_payments (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id     INTEGER NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
+  run_id      INTEGER REFERENCES payroll_runs(id) ON DELETE SET NULL,
+  year        INTEGER NOT NULL,
+  month       INTEGER NOT NULL,
+  amount      REAL    NOT NULL,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (loan_id, year, month)
+);
+
+-- مخالصات نهاية الخدمة
+CREATE TABLE IF NOT EXISTS end_of_service (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id           INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  last_working_day      TEXT    NOT NULL,
+  reason                TEXT    NOT NULL,   -- termination أو resignation أو contract_end أو retirement
+  service_years         REAL    NOT NULL DEFAULT 0,
+  monthly_wage          REAL    NOT NULL DEFAULT 0,
+  gratuity_amount       REAL    NOT NULL DEFAULT 0,
+  gratuity_factor       REAL    NOT NULL DEFAULT 1,  -- نسبة الاستحقاق في حالة الاستقالة
+  unused_leave_days     REAL    NOT NULL DEFAULT 0,
+  unused_leave_amount   REAL    NOT NULL DEFAULT 0,
+  other_dues            REAL    NOT NULL DEFAULT 0,
+  outstanding_loans     REAL    NOT NULL DEFAULT 0,
+  other_deductions      REAL    NOT NULL DEFAULT 0,
+  net_amount            REAL    NOT NULL DEFAULT 0,
+  status                TEXT    NOT NULL DEFAULT 'draft',  -- draft أو approved أو paid
+  notes                 TEXT,
+  created_by            INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  created_at            TEXT    NOT NULL DEFAULT (datetime('now')),
+  approved_by           INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  approved_at           TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_eos_employee ON end_of_service(employee_id);
+
 CREATE TABLE IF NOT EXISTS settings (
   key         TEXT PRIMARY KEY,
   value       TEXT,

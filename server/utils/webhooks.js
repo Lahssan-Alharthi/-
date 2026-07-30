@@ -24,6 +24,8 @@ const EVENTS = {
   'trip.created': 'إنشاء رحلة',
   'trip.status_changed': 'تغيّر حالة رحلة',
   'vehicle.maintenance': 'تسجيل صيانة مركبة',
+  'loan.created': 'تسجيل سلفة على الراتب',
+  'end_of_service.approved': 'اعتماد مخالصة نهاية خدمة',
 };
 
 const EVENT_KEYS = Object.keys(EVENTS);
